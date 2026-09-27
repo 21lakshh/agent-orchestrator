@@ -25,6 +25,7 @@ import (
 	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
 	"github.com/aoagents/agent-orchestrator/backend/internal/sessionguard"
 	"github.com/aoagents/agent-orchestrator/backend/internal/skillassets"
+	"github.com/aoagents/agent-orchestrator/backend/internal/termtheme"
 	"github.com/aoagents/agent-orchestrator/backend/internal/tmuxbin"
 )
 
@@ -5356,6 +5357,12 @@ func (m *Manager) augmentAgentRuntimeEnv(agent ports.Agent, env map[string]strin
 	}); ok {
 		augmenter.AugmentRuntimeEnv(env, m.dataDir)
 	}
+	// Every agent, not only Cursor: CLIs that follow the terminal theme (Claude
+	// Code's "auto", Codex) otherwise fall back to dark when their OSC 11 probe
+	// is not answered in time across the mux, and draw near-white text on AO's
+	// light canvas. A value the project env already set wins, in any key case
+	// where the OS folds env keys.
+	termtheme.ApplyFoldingKeys(env, m.dataDir, envKeysCaseInsensitive)
 }
 
 // prepareWorkspace runs the per-session pre-launch steps before the runtime
