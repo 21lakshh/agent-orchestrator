@@ -365,7 +365,7 @@ function AppearanceRow() {
 			icon="sun"
 			label="Appearance"
 			right={
-				<Host style={{ width: 96, height: 38 }} colorScheme={scheme} seedColor={t.accent}>
+				<Host style={{ width: 124, height: 38 }} colorScheme={scheme} seedColor={t.accent}>
 					<Picker
 						selectedValue={preference}
 						onValueChange={(value) => {
