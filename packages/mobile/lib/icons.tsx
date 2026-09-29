@@ -70,6 +70,12 @@ import MicOff from "lucide-react-native/icons/mic-off";
 import Minus from "lucide-react-native/icons/minus";
 import CircleMinus from "lucide-react-native/icons/circle-minus";
 import Monitor from "lucide-react-native/icons/monitor";
+import MonitorCog from "lucide-react-native/icons/monitor-cog";
+import MonitorOff from "lucide-react-native/icons/monitor-off";
+import MonitorSmartphone from "lucide-react-native/icons/monitor-smartphone";
+import RouteOff from "lucide-react-native/icons/route-off";
+import Timer from "lucide-react-native/icons/timer";
+import Unplug from "lucide-react-native/icons/unplug";
 import Moon from "lucide-react-native/icons/moon";
 import Ellipsis from "lucide-react-native/icons/ellipsis";
 import Paperclip from "lucide-react-native/icons/paperclip";
@@ -186,6 +192,9 @@ export const glyphs = {
 	"minus": Minus,
 	"minus-circle": CircleMinus,
 	"monitor": Monitor,
+	"monitor-cog": MonitorCog,
+	"monitor-off": MonitorOff,
+	"monitor-smartphone": MonitorSmartphone,
 	"moon": Moon,
 	"more-horizontal": Ellipsis,
 	"paperclip": Paperclip,
@@ -200,6 +209,7 @@ export const glyphs = {
 	"repeat": Repeat,
 	"rotate-ccw": RotateCcw,
 	"rotate-cw": RotateCw,
+	"route-off": RouteOff,
 	"save": Save,
 	"search": Search,
 	"send": Send,
@@ -216,10 +226,12 @@ export const glyphs = {
 	"table": Table,
 	"terminal": Terminal,
 	"tool": Wrench,
+	"timer": Timer,
 	"trash": Trash,
 	"trash-2": Trash,
 	"type": Type,
 	"underline": Underline,
+	"unplug": Unplug,
 	"user": User,
 	"wifi-off": WifiOff,
 	"x": X,
