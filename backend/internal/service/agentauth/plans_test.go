@@ -49,6 +49,7 @@ func TestPlansMatchAuthenticationMatrix(t *testing.T) {
 		{"prime-agent", "Log in to Prime Agent", "prime-agent", "Select Open login after Prime Agent finishes starting", "https://github.com/PrimeIntellect-ai/prime-agent/blob/main/packages/coding-agent/docs/quickstart.md", "/login\r", ActionLogin, []string{"prime-agent"}},
 		{"omp", "Log in to OMP", "omp", "Select Open login after OMP finishes starting", "https://github.com/can1357/oh-my-pi", "/login\r", ActionLogin, []string{"omp"}},
 		{"fx", "Log in to fx", "fx", "Select Vercel, Codex, or Grok in fx's native login flow", "https://fx.sh/docs", "", ActionLogin, []string{"fx", "login"}},
+		{"deepseek-harness", "Set up DeepSeek", "dsh", "Opens DeepSeek's Models page to store an API key and pick a model route; leave it running until the key is saved", "https://github.com/deepseek-ai/deepseek-harness", "", ActionSetup, []string{"dsh", "--profile", "web"}},
 	}
 
 	svc := New(foundExecutables(cases), nil)
@@ -60,7 +61,12 @@ func TestPlansMatchAuthenticationMatrix(t *testing.T) {
 	for i, want := range cases {
 		got := plans[i]
 		wantLaunchMode := LaunchTerminal
-		if want.id == "aider" {
+		switch want.id {
+		// Aider is the one harness AO can only document: it configures providers
+		// through files and environment, with no command to drive. DeepSeek
+		// Harness has no login subcommand either, but its web profile serves the
+		// Models page that writes the credential, so its setup is a terminal plan.
+		case "aider":
 			wantLaunchMode = LaunchDocumentation
 		}
 		if seen[got.AgentID] {

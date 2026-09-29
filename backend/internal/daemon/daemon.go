@@ -487,12 +487,21 @@ func Run() error {
 		CodexModels: func(listCtx context.Context, request ports.AgentModelDiscoveryRequest) ([]ports.ChatModel, error) {
 			return codexModelDriver.DiscoverModels(listCtx, request.WorkingDir, request.Env)
 		},
-		ClineOptions: func(listCtx context.Context, request ports.AgentModelDiscoveryRequest) ([]ports.ChatConfigOption, error) {
-			return chatdriveracp.DiscoverConfigOptions(listCtx, chatdriveracp.Launch{
-				Command: request.Binary,
-				Args:    []string{"--acp"},
-				Env:     request.Env,
-			}, request.WorkingDir, log)
+		ACPOptions: map[string]modelcatalog.ACPOptionListFunc{
+			"cline": func(listCtx context.Context, request ports.AgentModelDiscoveryRequest) ([]ports.ChatConfigOption, error) {
+				return chatdriveracp.DiscoverConfigOptions(listCtx, chatdriveracp.Launch{
+					Command: request.Binary,
+					Args:    []string{"--acp"},
+					Env:     request.Env,
+				}, request.WorkingDir, log)
+			},
+			"deepseek-harness": func(listCtx context.Context, request ports.AgentModelDiscoveryRequest) ([]ports.ChatConfigOption, error) {
+				return chatdriveracp.DiscoverConfigOptions(listCtx, chatdriveracp.Launch{
+					Command: request.Binary,
+					Args:    []string{"--profile", "acp"},
+					Env:     request.Env,
+				}, request.WorkingDir, log)
+			},
 		},
 		// Claude's model IDs are provider-specific — first-party aliases,
 		// Bedrock ARNs-in-miniature, Vertex @-versions — so the list has to come
@@ -526,6 +535,7 @@ func Run() error {
 	codexOperationGate := codexops.NewGate()
 	agentDeps := agentsvc.Deps{
 		Cache: store, Discoverer: modelDiscoverer, Projects: store, Sessions: store, Context: ctx, Logger: log,
+		ModelDiscoveryDir:      filepath.Join(cfg.DataDir, "model-discovery"),
 		CodexAccountRoot:       filepath.Join(cfg.StateDir, "harnesses", "codex", "accounts"),
 		CodexPendingRoot:       filepath.Join(cfg.StateDir, "harnesses", "codex", "pending-accounts"),
 		CodexSwitchStagingRoot: filepath.Join(cfg.StateDir, "harnesses", "codex", "switch-staging"),
