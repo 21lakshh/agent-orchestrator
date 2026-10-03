@@ -1523,7 +1523,7 @@ function timelineSortTime(timestamp: string | null | undefined): number {
 	return Number.isFinite(milliseconds) ? milliseconds : Number.NEGATIVE_INFINITY;
 }
 
-type ScmTimelineState = "ci_failed" | "changes_requested" | "conflict";
+type ScmTimelineState = "ci_failed" | "changes_requested" | "commented" | "conflict";
 
 function conflictPill() {
 	return { label: appI18n.t("inspector.conflict"), tone: "var(--color-danger)", breathe: false };
@@ -1558,9 +1558,16 @@ function scmTimelineStates(session: WorkspaceSession): ScmTimelineState[] {
 
 	if (session.status === "ci_failed") add("ci_failed");
 	if (session.status === "changes_requested") add("changes_requested");
+	if (session.status === "commented") add("commented");
 	for (const pr of session.prs) {
 		if (open.has(pr) && pr.ci === "failing") add("ci_failed");
 		if (pr.review === "changes_requested") add("changes_requested");
+		// Read the raw fact directly rather than session.status: status collapses
+		// to "working" while the agent is active, but unresolved comments from a
+		// non-blocking review must stay visible regardless of agent activity.
+		// Gated on the PR still being open so a stale comment on a merged/closed
+		// PR cannot keep the pill around.
+		if (open.has(pr) && pr.reviewComments) add("commented");
 		if (pr.mergeability === "conflicting") add("conflict");
 	}
 
