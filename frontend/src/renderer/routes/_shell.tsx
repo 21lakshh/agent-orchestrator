@@ -1014,14 +1014,11 @@ function ShellLayout() {
 		if (handledShellNonceRef.current === newShellTerminalNonce) return;
 		handledShellNonceRef.current = newShellTerminalNonce;
 		if (routeParams.hostId) return;
-		const shell = openShellTerminal.open(
-			{ projectId: scopedProjectId, sessionId: routeParams.sessionId, cloud: scopedSession?.cloud },
-			{
-				onSuccess: (openedShell) => {
-					setActiveShellTerminal(openedShell.handleId);
-				},
-			},
-		);
+		const shell = openShellTerminal.open({
+			projectId: scopedProjectId,
+			sessionId: routeParams.sessionId,
+			cloud: scopedSession?.cloud,
+		});
 		if (!shell) return;
 		setActiveShellTerminal(shell.handleId);
 		if (!routeParams.sessionId) {
