@@ -1486,6 +1486,39 @@ func (q *Queries) ReleaseUntouchedConversationProvider(ctx context.Context, arg 
 	return result.RowsAffected()
 }
 
+const replaceUntouchedConversationProvider = `-- name: ReplaceUntouchedConversationProvider :execrows
+UPDATE conversation_branches
+SET provider_conversation_id = ?1
+WHERE conversation_branches.session_id = ?2 AND parent_branch_id IS NULL
+  AND conversation_branches.provider_conversation_id = ?3
+  AND conversation_branches.id = (
+      SELECT c.active_branch_id FROM conversations AS c
+      WHERE c.current_session_id = ?2
+        AND (c.session_id = ?2 OR (c.scope = 'project' AND c.session_id IS NULL))
+        AND c.latest_sequence = 0
+        AND NOT EXISTS (
+            SELECT 1 FROM conversation_turns WHERE conversation_id = c.id
+        )
+  )
+`
+
+type ReplaceUntouchedConversationProviderParams struct {
+	ProviderConversationID         string
+	SessionID                      sql.NullString
+	ExpectedProviderConversationID string
+}
+
+// Same proof as ReleaseUntouchedConversationProvider, but rebinds the empty
+// root to a fresh provider id and keeps its provider scope, which is part of
+// the persistent provider host's identity.
+func (q *Queries) ReplaceUntouchedConversationProvider(ctx context.Context, arg ReplaceUntouchedConversationProviderParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, replaceUntouchedConversationProvider, arg.ProviderConversationID, arg.SessionID, arg.ExpectedProviderConversationID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const reserveQueuedConversationTurnForPromotion = `-- name: ReserveQueuedConversationTurnForPromotion :execrows
 UPDATE conversation_turns
 SET promotion_started_at = ?1
