@@ -72,3 +72,65 @@ func TestFreshInterfaceEpochReleasesOnlyUntouchedRootProvider(t *testing.T) {
 		})
 	}
 }
+
+// Orchestrator conversations are project-owned: session_id is empty and the
+// active orchestrator is recorded only as current_session_id.
+func TestFreshInterfaceEpochReleasesUntouchedProjectConversation(t *testing.T) {
+	for _, name := range []string{"fresh", "provider turn"} {
+		t.Run(name, func(t *testing.T) {
+			st := newTestStore(t)
+			ctx := context.Background()
+			seedProject(t, st, "fresh-orchestrator")
+			now := time.Now()
+			rec := sampleRecord("fresh-orchestrator")
+			rec.Kind = domain.KindOrchestrator
+			rec.Mode = domain.SessionModeChat
+			rec.Metadata.ProviderConversationID = "reserved-chat-id"
+			rec.Metadata.ControllerGeneration = "chat-generation"
+			sess, err := st.CreateSession(ctx, rec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			conversation, err := st.CreateConversation(ctx, "project-conversation", domain.ConversationScopeProject,
+				sess.ProjectID, sess.ID, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			before, err := st.ConversationBranch(ctx, conversation.ID, conversation.ActiveBranchID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if name == "provider turn" {
+				if err := st.AdoptProviderTurn(ctx, conversation.ID, sess.ID, "chat-generation", "turn-1", "provider-turn-1", now); err != nil {
+					t.Fatal(err)
+				}
+			}
+			changed, err := st.CommitSessionControllerEpoch(ctx, sess.ID, domain.SessionModeChat, domain.SessionModeTUI, "", now)
+			after, branchErr := st.ConversationBranch(ctx, conversation.ID, conversation.ActiveBranchID)
+			if branchErr != nil {
+				t.Fatal(branchErr)
+			}
+			current, _, getErr := st.GetSession(ctx, sess.ID)
+			if getErr != nil {
+				t.Fatal(getErr)
+			}
+			if name == "fresh" {
+				if err != nil || !changed {
+					t.Fatalf("fresh orchestrator epoch changed=%v err=%v", changed, err)
+				}
+				if after.ProviderConversationID != "" || after.ProviderScopeID == before.ProviderScopeID ||
+					current.Mode != domain.SessionModeTUI {
+					t.Fatalf("unused provider binding was retained: before=%+v after=%+v mode=%s", before, after, current.Mode)
+				}
+				return
+			}
+			if changed || err == nil {
+				t.Fatalf("orchestrator with history changed=%v err=%v", changed, err)
+			}
+			if after.ProviderConversationID != before.ProviderConversationID || current.Mode != domain.SessionModeChat {
+				t.Fatalf("failed epoch changed ownership: branch=%+v session=%+v", after, current)
+			}
+		})
+	}
+}
+
