@@ -23,10 +23,14 @@ func TestResumeUntouchedChatStartsFreshWhenProviderNeverPersisted(t *testing.T) 
 		scope        domain.ConversationScope
 		providerTurn bool
 		wantFresh    bool
+		replacement  bool
 	}{
-		{"orchestrator", domain.KindOrchestrator, domain.ConversationScopeProject, false, true},
-		{"worker", domain.KindWorker, domain.ConversationScopeSession, false, true},
-		{"orchestrator with provider turn", domain.KindOrchestrator, domain.ConversationScopeProject, true, false},
+		{"orchestrator", domain.KindOrchestrator, domain.ConversationScopeProject, false, true, false},
+		{"worker", domain.KindWorker, domain.ConversationScopeSession, false, true, false},
+		{"orchestrator with provider turn", domain.KindOrchestrator, domain.ConversationScopeProject, true, false, false},
+		// The project conversation was handed to a replacement orchestrator,
+		// whose root still records the orchestrator that created it.
+		{"replacement orchestrator", domain.KindOrchestrator, domain.ConversationScopeProject, false, true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// An empty Claude config dir: no transcript exists for the reserved id.
@@ -58,6 +62,24 @@ func TestResumeUntouchedChatStartsFreshWhenProviderNeverPersisted(t *testing.T) 
 					"turn-1", "provider-turn-1", now); err != nil {
 					t.Fatal(err)
 				}
+			}
+			if tc.replacement {
+				replacement := created
+				replacement.ID = ""
+				replacement.Metadata.ProviderConversationID = ""
+				replacement, err = store.CreateSession(ctx, replacement)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := store.CreateConversation(ctx, "ignored", tc.scope, "proj", replacement.ID, now); err != nil {
+					t.Fatal(err)
+				}
+				// The replacement's first Chat start publishes its reserved id.
+				replacement.Metadata.ProviderConversationID = reserved
+				if err := store.UpdateSession(ctx, replacement); err != nil {
+					t.Fatal(err)
+				}
+				created = replacement
 			}
 			launcher := &recordingLauncher{}
 			manager := New(Deps{

@@ -36,11 +36,12 @@ SELECT * FROM conversations WHERE id = ? LIMIT 1;
 SELECT EXISTS (SELECT 1 FROM conversation_turns WHERE conversation_id = ?);
 
 -- name: ReleaseUntouchedConversationProvider :execrows
--- A project conversation (orchestrator) has no owning session_id; the session
--- currently bound to it is the owner for this release.
+-- The conversation's current session is the owner. A project conversation
+-- (orchestrator) has no owning session_id, and its root branch's session_id
+-- records the orchestrator that created it, not the one that holds it now.
 UPDATE conversation_branches
 SET provider_conversation_id = '', provider_scope_id = sqlc.arg(provider_scope_id)
-WHERE conversation_branches.session_id = sqlc.arg(session_id) AND parent_branch_id IS NULL
+WHERE parent_branch_id IS NULL
   AND conversation_branches.id = (
       SELECT c.active_branch_id FROM conversations AS c
       WHERE c.current_session_id = sqlc.arg(session_id)
@@ -57,7 +58,7 @@ WHERE conversation_branches.session_id = sqlc.arg(session_id) AND parent_branch_
 -- the persistent provider host's identity.
 UPDATE conversation_branches
 SET provider_conversation_id = sqlc.arg(provider_conversation_id)
-WHERE conversation_branches.session_id = sqlc.arg(session_id) AND parent_branch_id IS NULL
+WHERE parent_branch_id IS NULL
   AND conversation_branches.provider_conversation_id = sqlc.arg(expected_provider_conversation_id)
   AND conversation_branches.id = (
       SELECT c.active_branch_id FROM conversations AS c

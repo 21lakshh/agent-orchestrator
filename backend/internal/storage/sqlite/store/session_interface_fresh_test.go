@@ -217,3 +217,118 @@ func TestReplaceUnpersistedChatProviderMovesSessionAndRoot(t *testing.T) {
 		})
 	}
 }
+
+// A project conversation handed to a replacement orchestrator keeps its root.
+// The root's session_id records the orchestrator that created it; the
+// conversation's current session is the live owner. An untouched reservation
+// left by the previous owner is released at the rebind, so the replacement
+// binds its own provider to the same root and both the Chat->Terminal release
+// and the fresh-resume swap prove ownership through current_session_id.
+func TestProjectRebindLetsReplacementOrchestratorReleaseAndReplace(t *testing.T) {
+	for _, name := range []string{"release", "replace", "with history", "same owner"} {
+		t.Run(name, func(t *testing.T) {
+			st := newTestStore(t)
+			ctx := context.Background()
+			seedProject(t, st, "rebind")
+			now := time.Now()
+			orchestrator := func(provider string) domain.SessionRecord {
+				rec := sampleRecord("rebind")
+				rec.Kind = domain.KindOrchestrator
+				rec.Mode = domain.SessionModeChat
+				rec.Metadata.ProviderConversationID = provider
+				rec.Metadata.ControllerGeneration = "chat-generation"
+				created, err := st.CreateSession(ctx, rec)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return created
+			}
+			s1 := orchestrator("s1-reserved")
+			conversation, err := st.CreateConversation(ctx, "project-conversation", domain.ConversationScopeProject, s1.ProjectID, s1.ID, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			root, err := st.ConversationBranch(ctx, conversation.ID, conversation.ActiveBranchID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if name == "with history" {
+				if err := st.AdoptProviderTurn(ctx, conversation.ID, s1.ID, "chat-generation", "turn-1", "provider-turn-1", now); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if name == "same owner" {
+				// A restart of the current owner must not drop its own reservation:
+				// a surviving provider host may still hold it.
+				if _, err := st.CreateConversation(ctx, "ignored", domain.ConversationScopeProject, s1.ProjectID, s1.ID, now); err != nil {
+					t.Fatal(err)
+				}
+				kept, err := st.ConversationBranch(ctx, conversation.ID, conversation.ActiveBranchID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if kept.ProviderConversationID != "s1-reserved" || kept.ProviderScopeID != root.ProviderScopeID {
+					t.Fatalf("same-owner rebind changed the root: before=%+v after=%+v", root, kept)
+				}
+				return
+			}
+
+			s2 := orchestrator("")
+			if _, err := st.CreateConversation(ctx, "ignored", domain.ConversationScopeProject, s2.ProjectID, s2.ID, now); err != nil {
+				t.Fatal(err)
+			}
+			rebound, err := st.ConversationBranch(ctx, conversation.ID, conversation.ActiveBranchID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rebound.SessionID != s1.ID {
+				t.Fatalf("rebind rewrote the root's creating session: %+v", rebound)
+			}
+			if name == "with history" {
+				if rebound.ProviderConversationID != "s1-reserved" {
+					t.Fatalf("rebind released a provider with history: %+v", rebound)
+				}
+				return
+			}
+			if rebound.ProviderConversationID != "" {
+				t.Fatalf("rebind kept the previous owner's reservation: %+v", rebound)
+			}
+
+			// The replacement's first Chat start publishes its provider id; the
+			// root binding trigger moves it onto the same, still-empty root.
+			s2.Metadata.ProviderConversationID = "s2-reserved"
+			if err := st.UpdateSession(ctx, s2); err != nil {
+				t.Fatal(err)
+			}
+			current, err := st.ConversationForSession(ctx, s2.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			bound, err := st.ConversationBranch(ctx, conversation.ID, current.ActiveBranchID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if bound.ID != root.ID || bound.ProviderConversationID != "s2-reserved" {
+				t.Fatalf("replacement did not bind the root: %+v", bound)
+			}
+
+			if name == "release" {
+				changed, err := st.CommitSessionControllerEpoch(ctx, s2.ID, domain.SessionModeChat, domain.SessionModeTUI, "", now)
+				if err != nil || !changed {
+					t.Fatalf("replacement Chat->Terminal changed=%v err=%v", changed, err)
+				}
+				return
+			}
+			if err := st.ReplaceUnpersistedChatProvider(ctx, s2.ID, "s2-reserved", "s2-fresh"); err != nil {
+				t.Fatalf("replacement fresh-resume swap: %v", err)
+			}
+			moved, err := st.ConversationBranch(ctx, conversation.ID, root.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if moved.ProviderConversationID != "s2-fresh" {
+				t.Fatalf("swap did not move the root: %+v", moved)
+			}
+		})
+	}
+}

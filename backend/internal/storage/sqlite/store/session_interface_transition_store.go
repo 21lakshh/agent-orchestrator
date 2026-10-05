@@ -314,7 +314,7 @@ func (s *Store) commitSessionControllerEpoch(
 		// Chat reservation and event namespace in the same transaction, so a
 		// later return can bind that identity without inventing inherited history.
 		released, err := q.ReleaseUntouchedConversationProvider(ctx, gen.ReleaseUntouchedConversationProviderParams{
-			SessionID:       sql.NullString{String: string(id), Valid: true},
+			SessionID:       &id,
 			ProviderScopeID: uuid.NewString(),
 		})
 		if err != nil {
@@ -355,7 +355,7 @@ func (s *Store) ReplaceUnpersistedChatProvider(
 		}
 		rebound, err := q.ReplaceUntouchedConversationProvider(ctx, gen.ReplaceUntouchedConversationProviderParams{
 			ProviderConversationID:         providerConversationID,
-			SessionID:                      sql.NullString{String: string(id), Valid: true},
+			SessionID:                      &id,
 			ExpectedProviderConversationID: expectedProviderConversationID,
 		})
 		if err != nil {
