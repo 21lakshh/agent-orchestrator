@@ -3,6 +3,9 @@ package sessionmanager
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -26,6 +29,16 @@ func (failingEpochLifecycle) CommitControllerEpoch(
 // provider id durably. Rollback must restore that owner, not present a
 // memory-only fresh owner that the browser capability check then rejects.
 func TestInterfaceTransitionRollbackRestoresUncommittedChatSource(t *testing.T) {
+	// The fake runtime never executes Claude, but preflight uses its real adapter.
+	binDir := t.TempDir()
+	binary := "claude"
+	if runtime.GOOS == "windows" {
+		binary += ".exe"
+	}
+	if err := os.WriteFile(filepath.Join(binDir, binary), []byte("test executable"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir)
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 	ctx := context.Background()
 	store := sqlitetest.MustOpenAt(t, t.TempDir())
@@ -85,7 +98,7 @@ func TestInterfaceTransitionRollbackRestoresUncommittedChatSource(t *testing.T) 
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	if settled.Phase != domain.SessionInterfaceTransitionFailed {
+	if settled.Phase != domain.SessionInterfaceTransitionFailed || settled.ErrorCode != "SESSION_CHANGED" {
 		t.Fatalf("rollback = %s (%s): %s", settled.Phase, settled.ErrorCode, settled.ErrorDetail)
 	}
 	current, _, err := store.GetSession(ctx, created.ID)
